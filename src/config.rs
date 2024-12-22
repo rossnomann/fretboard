@@ -1,4 +1,4 @@
-use crate::tuning::Tuning;
+use crate::{theme::ThemeName, tuning::Tuning};
 
 pub const APPLICATION_TITLE: &str = "Fretboard";
 
@@ -6,6 +6,7 @@ pub const APPLICATION_TITLE: &str = "Fretboard";
 pub struct Config {
     pub frets_count: u8,
     pub tuning: Tuning,
+    pub theme_name: ThemeName,
 }
 
 impl Config {
@@ -17,6 +18,7 @@ impl Default for Config {
         Self {
             frets_count: Self::DEFAULT_FRETS_COUNT,
             tuning: Tuning::default(),
+            theme_name: ThemeName::default(),
         }
     }
 }

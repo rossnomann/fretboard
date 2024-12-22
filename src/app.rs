@@ -6,7 +6,9 @@ use crate::{
 pub fn run() -> iced::Result {
     let mut window_settings = iced::window::Settings::default();
     window_settings.platform_specific.application_id = String::from("com.github.rossnomann.fretboard");
-    let app = iced::application(APPLICATION_TITLE, update, view).window(window_settings);
+    let app = iced::application(APPLICATION_TITLE, update, view)
+        .window(window_settings)
+        .theme(|state| iced::Theme::from(state.config.theme_name));
     let config = Config::default();
     app.run_with(move || (State::new(config), iced::Task::none()))
 }
@@ -31,7 +33,11 @@ fn update(state: &mut State, message: Message) {
 
 fn view(state: &State) -> iced::Element<Message> {
     iced::widget::row![
-        Fretboard::new(state.config.frets_count, state.config.tuning.clone()),
+        Fretboard::new(
+            state.config.frets_count,
+            state.config.tuning.clone(),
+            state.config.theme_name
+        ),
         iced::widget::text("TODO: CONFIG")
     ]
     .into()

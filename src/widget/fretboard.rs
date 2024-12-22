@@ -1,18 +1,26 @@
-use crate::tuning::{Pitch, Tuning};
+use crate::{
+    theme::Palette,
+    tuning::{Pitch, Tuning},
+};
 
 #[derive(Debug)]
 pub struct Fretboard {
     frets_count: u8,
     tuning: Tuning,
+    palette: Palette,
 }
 
 impl Fretboard {
-    pub fn new(frets_count: u8, tuning: Tuning) -> Self {
-        Self { frets_count, tuning }
+    pub fn new(frets_count: u8, tuning: Tuning, palette: impl Into<Palette>) -> Self {
+        Self {
+            frets_count,
+            tuning,
+            palette: palette.into(),
+        }
     }
 }
 
-impl<M, T, R> iced::advanced::Widget<M, T, R> for Fretboard
+impl<M, R> iced::advanced::Widget<M, iced::Theme, R> for Fretboard
 where
     R: iced::advanced::renderer::Renderer + iced::advanced::text::Renderer<Font = iced::Font>,
 {
@@ -28,7 +36,7 @@ where
         _renderer: &R,
         limits: &iced::advanced::layout::Limits,
     ) -> iced::advanced::layout::Node {
-        let size = iced::advanced::Widget::<M, T, R>::size(self);
+        let size = iced::advanced::Widget::<M, iced::Theme, R>::size(self);
         let width = size.width;
         let height = size.height;
         iced::advanced::layout::atomic(limits, width, height)
@@ -38,7 +46,7 @@ where
         &self,
         _tree: &iced::advanced::widget::Tree,
         renderer: &mut R,
-        _theme: &T,
+        _theme: &iced::Theme,
         _style: &iced::advanced::renderer::Style,
         layout: iced::advanced::layout::Layout<'_>,
         _cursor: iced::mouse::Cursor,
@@ -61,82 +69,43 @@ where
             return;
         }
 
-        let mut fill_rect = |bounds: iced::Rectangle, color: iced::Color| {
-            renderer.fill_quad(
-                iced::advanced::renderer::Quad {
-                    bounds,
-                    border: iced::Border::default(),
-                    shadow: iced::Shadow::default(),
-                },
-                iced::Background::Color(color),
-            );
-        };
+        Bounds::new(iced::Rectangle::new(iced::Point::ORIGIN, max_size), self.palette.base).render(renderer);
 
-        fill_rect(
-            iced::Rectangle::new(iced::Point::ORIGIN, max_size),
-            iced::Color::from_rgb(0.53, 0.69, 0.30),
-        );
-
-        let widget_layout = Layout::new(frets_count, strings_count, max_size);
-        let pitches = match widget_layout.orientation {
+        let widget_layout = Layout::new(frets_count, strings_count, max_size, self.palette);
+        let pitches = match widget_layout.cx.orientation {
             Orientation::Horizontal => &mut pitches.iter().rev() as &mut dyn Iterator<Item = &Pitch>,
             Orientation::Vertical => &mut pitches.iter() as &mut dyn Iterator<Item = &Pitch>,
         };
 
-        fill_rect(widget_layout.bbox, iced::Color::BLACK);
-        fill_rect(widget_layout.bbox_nut, iced::Color::from_rgb(255.0, 0.0, 0.0));
-        let fret_background_color = iced::Color::from_rgb(0.0, 255.0, 0.0);
+        widget_layout.calculate_board().render(renderer);
+        widget_layout.calculate_nut().render(renderer);
         (1..=frets_count)
             .map(|x| widget_layout.calculate_fret(x))
-            .for_each(|fret| fill_rect(fret, fret_background_color));
-        let fret_marker_background_color = iced::Color::from_rgb(0.0, 0.0, 255.0);
+            .for_each(|x| x.render(renderer));
         (1..=frets_count)
-            .zip(Layout::FRET_MARKERS_MARKUP.into_iter().cycle())
-            .map(|(fret_number, markers_count)| widget_layout.calculate_fret_marker(fret_number, markers_count))
-            .for_each(|fret_marker| match fret_marker {
-                FretMarker::Single(bounds) => fill_rect(bounds, fret_marker_background_color),
-                FretMarker::Double(bounds_a, bounds_b) => {
-                    fill_rect(bounds_a, fret_marker_background_color);
-                    fill_rect(bounds_b, fret_marker_background_color);
-                }
-                FretMarker::None => {}
-            });
-        let string_background_color = iced::Color::from_rgb(255.0, 255.0, 0.0);
+            .zip(FretMarkerType::MARKUP.into_iter().cycle())
+            .filter_map(|(fret_number, marker_type)| {
+                marker_type.map(|marker_type| widget_layout.calculate_fret_marker(fret_number, marker_type))
+            })
+            .for_each(|x| x.render(renderer));
         (1..=strings_count)
             .map(|x| widget_layout.calculate_string(x))
-            .for_each(|string| fill_rect(string, string_background_color));
-        let note_label_color_bg = iced::Color::from_rgb(50.0, 50.0, 50.0);
-        let note_label_color_fg = iced::Color::from_rgb(0.0, 0.0, 0.0);
+            .for_each(|x| x.render(renderer));
         pitches
             .enumerate()
             .flat_map(|(pitch_number, pitch_origin)| {
-                let pitch_number = (pitch_number + 1) as f32;
+                let string_number = pitch_number + 1;
                 (0..=frets_count).zip(*pitch_origin).map(move |(fret_number, pitch)| {
-                    widget_layout.calculate_note_label(fret_number, pitch_number, pitch)
+                    widget_layout.note_label.calculate(fret_number, string_number, pitch)
                 })
             })
-            .for_each(move |note_label| {
-                renderer.fill_quad(
-                    iced::advanced::renderer::Quad {
-                        bounds: note_label.clip_bounds,
-                        border: iced::Border::default(),
-                        shadow: iced::Shadow::default(),
-                    },
-                    iced::Background::Color(note_label_color_bg),
-                );
-                renderer.fill_text(
-                    note_label.text,
-                    note_label.location,
-                    note_label_color_fg,
-                    note_label.clip_bounds,
-                )
-            });
+            .for_each(move |note_label| note_label.render(renderer));
     }
 }
 
-impl<M, T, R> From<Fretboard> for iced::Element<'_, M, T, R>
+impl<M, R> From<Fretboard> for iced::Element<'_, M, iced::Theme, R>
 where
-    R: iced::advanced::renderer::Renderer + iced::advanced::text::Renderer<Font = iced::Font>,
+    R: iced::advanced::text::Renderer<Font = iced::Font>,
 {
     fn from(value: Fretboard) -> Self {
         Self::new(value)
@@ -165,9 +134,11 @@ impl Orientation {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct Layout {
-    bbox: iced::Rectangle,
-    bbox_nut: iced::Rectangle,
+struct Cx {
+    length_frets: f32,
+    length_pitches: f32,
+    note_label_bounds_width: f32,
+    note_label_font_size: f32,
     orientation: Orientation,
     origin: iced::Point,
     origin_fret: f32,
@@ -177,18 +148,19 @@ struct Layout {
     origin_nut: f32,
     size_fret: iced::Size,
     size_fret_marker: iced::Size,
-    size_note_label: NoteLabelSize,
+    size_nut: iced::Size,
     size_string: iced::Size,
     spacing_fret: f32,
     spacing_string: f32,
 }
 
-impl Layout {
-    const FRET_MARKER_SCALE: f32 = 0.1;
-    const FRET_MARKERS_MARKUP: [u8; 12] = [0, 0, 1, 0, 1, 0, 1, 0, 1, 0, 0, 2];
-    const FRET_SCALE: f32 = 0.002;
-    const NUT_SCALE: f32 = 0.002;
-    const STRING_SCALE: f32 = 0.005;
+impl Cx {
+    const SCALE_FRET: f32 = 0.002;
+    const SCALE_FRET_MARKER: f32 = 0.07;
+    const SCALE_NOTE_LABEL_BOUNDS: f32 = 2.5;
+    const SCALE_NOTE_LABEL_FONT: f32 = 0.009;
+    const SCALE_NUT: f32 = 0.002;
+    const SCALE_STRING: f32 = 0.005;
 
     fn new(frets_count: u8, strings_count: usize, max_size: iced::Size) -> Self {
         let frets_count = frets_count as f32;
@@ -208,27 +180,25 @@ impl Layout {
             (width_pitches - length_pitches) / 2.0,
         );
 
-        let size_note_label = NoteLabelSize::new(length_frets);
-        let nut_width = length_frets * Self::NUT_SCALE;
+        let nut_width = length_frets * Self::SCALE_NUT;
 
-        let origin_nut = origin.x + size_note_label.width * 1.25;
+        let note_label_font_size = length_frets * Self::SCALE_NOTE_LABEL_FONT;
+        let note_label_bounds_width = note_label_font_size * Self::SCALE_NOTE_LABEL_BOUNDS;
+
+        let origin_nut = origin.x + note_label_bounds_width * 1.25;
         let origin_fret = origin_nut + nut_width;
 
         let spacing_fret = (length_frets - origin_fret) / (frets_count + 1.0);
         let spacing_string = length_pitches / (strings_count + 1.0);
 
-        let fret_marker_width = spacing_fret * Self::FRET_MARKER_SCALE;
+        let fret_marker_width = spacing_fret * Self::SCALE_FRET_MARKER;
         let origin_fret_marker_single = origin.y + ((length_pitches / 2.0) - (fret_marker_width / 2.0));
 
         Self {
-            bbox: iced::Rectangle::new(
-                orientation.transform_point(origin),
-                orientation.transform_size(iced::Size::new(length_frets, length_pitches)),
-            ),
-            bbox_nut: iced::Rectangle::new(
-                orientation.transform_point(iced::Point::new(origin_nut, origin.y)),
-                orientation.transform_size(iced::Size::new(nut_width, length_pitches)),
-            ),
+            length_frets,
+            length_pitches,
+            note_label_bounds_width,
+            note_label_font_size,
             orientation,
             origin,
             origin_fret,
@@ -236,121 +206,257 @@ impl Layout {
             origin_fret_marker_double_b: origin_fret_marker_single + fret_marker_width,
             origin_fret_marker_single,
             origin_nut,
-            size_fret: orientation.transform_size(iced::Size::new(length_frets * Self::FRET_SCALE, length_pitches)),
+            size_nut: orientation.transform_size(iced::Size::new(nut_width, length_pitches)),
+            size_fret: orientation.transform_size(iced::Size::new(length_frets * Self::SCALE_FRET, length_pitches)),
             size_fret_marker: iced::Size::new(fret_marker_width, fret_marker_width),
-            size_note_label,
             size_string: orientation.transform_size(iced::Size::new(
                 length_frets - origin_nut,
-                length_pitches * Self::STRING_SCALE,
+                length_pitches * Self::SCALE_STRING,
             )),
             spacing_fret,
             spacing_string,
         }
     }
 
-    fn calculate_fret(&self, fret_number: u8) -> iced::Rectangle {
-        let x = self.origin_fret + (self.spacing_fret * fret_number as f32);
-        let point = self.orientation.transform_point(iced::Point::new(x, self.origin.y));
-        iced::Rectangle::new(point, self.size_fret)
+    fn calculate_fret_position_x(&self, number: u8) -> f32 {
+        self.spacing_fret * number as f32 + self.origin_fret
     }
 
-    fn calculate_fret_marker(&self, fret_number: u8, markers_count: u8) -> FretMarker {
-        let x = self.origin_fret + (self.spacing_fret * fret_number as f32) - (self.spacing_fret / 2.0);
-        let orientation = self.orientation;
-        let pos = |y: f32| orientation.transform_point(iced::Point::new(x, y));
-        match markers_count {
-            1 => FretMarker::Single(iced::Rectangle::new(
-                pos(self.origin_fret_marker_single),
-                self.size_fret_marker,
-            )),
-            2 => FretMarker::Double(
-                iced::Rectangle::new(pos(self.origin_fret_marker_double_a), self.size_fret_marker),
-                iced::Rectangle::new(pos(self.origin_fret_marker_double_b), self.size_fret_marker),
-            ),
-            _ => FretMarker::None,
-        }
+    fn calculate_fret_marker_position_x(&self, fret_number: u8) -> f32 {
+        self.calculate_fret_position_x(fret_number) - (self.spacing_fret / 2.0)
     }
 
-    fn calculate_note_label(&self, fret_number: u8, pitch_number: f32, pitch: Pitch) -> NoteLabel {
-        let x = (self.origin_fret + fret_number as f32 * self.spacing_fret) - self.size_note_label.value * 1.2;
-        let y = self.origin.y + pitch_number * self.spacing_string;
-        let point = self.orientation.transform_point(iced::Point::new(x, y));
-        NoteLabel::new(
-            point,
-            format!("{}{}", pitch.note.format_sharp(), pitch.octave),
-            self.size_note_label,
-        )
+    fn calculate_string_position_y(&self, number: usize) -> f32 {
+        self.spacing_string * number as f32 + self.origin.y
     }
-
-    fn calculate_string(&self, string_number: usize) -> iced::Rectangle {
-        let y = self.origin.y + self.spacing_string * string_number as f32;
-        let point = self.orientation.transform_point(iced::Point::new(self.origin_nut, y));
-        iced::Rectangle::new(point, self.size_string)
-    }
-}
-
-#[derive(Debug)]
-enum FretMarker {
-    Single(iced::Rectangle),
-    Double(iced::Rectangle, iced::Rectangle),
-    None,
 }
 
 #[derive(Clone, Copy, Debug)]
-struct NoteLabelSize {
-    bounds: iced::Size,
-    font: iced::Pixels,
-    line_heigth: iced::advanced::text::LineHeight,
-    value: f32,
-    width: f32,
+struct Layout {
+    note_label: LayoutNoteLabel,
+    cx: Cx,
+    palette: Palette,
 }
 
-impl NoteLabelSize {
-    const FONT_SCALE: f32 = 0.012;
-
-    fn new(frets_length: f32) -> Self {
-        let font = frets_length * Self::FONT_SCALE;
-        let width = font * 1.9;
+impl Layout {
+    fn new(frets_count: u8, strings_count: usize, max_size: iced::Size, palette: Palette) -> Self {
+        let cx = Cx::new(frets_count, strings_count, max_size);
         Self {
-            bounds: iced::Size::new(width, width),
-            font: iced::Pixels::from(font),
-            line_heigth: iced::advanced::text::LineHeight::Relative(1.0),
-            value: font,
-            width,
+            cx,
+            note_label: LayoutNoteLabel::new(cx, palette),
+            palette,
         }
     }
 
-    fn calculate_clip_bounds(&self, location: iced::Point) -> iced::Rectangle {
-        iced::Rectangle::new(
-            iced::Point::new(location.x - self.value, location.y - self.value),
-            self.bounds,
+    fn calculate_board(&self) -> Bounds {
+        let origin = self.cx.orientation.transform_point(self.cx.origin);
+        let size = self
+            .cx
+            .orientation
+            .transform_size(iced::Size::new(self.cx.length_frets, self.cx.length_pitches));
+        Bounds::new(iced::Rectangle::new(origin, size), self.palette.surface0)
+    }
+
+    fn calculate_nut(&self) -> Bounds {
+        let origin = self
+            .cx
+            .orientation
+            .transform_point(iced::Point::new(self.cx.origin_nut, self.cx.origin.y));
+        Bounds::new(iced::Rectangle::new(origin, self.cx.size_nut), self.palette.peach)
+    }
+
+    fn calculate_fret(&self, fret_number: u8) -> Bounds {
+        let x = self.cx.calculate_fret_position_x(fret_number);
+        let point = self
+            .cx
+            .orientation
+            .transform_point(iced::Point::new(x, self.cx.origin.y));
+        let bounds = iced::Rectangle::new(point, self.cx.size_fret);
+        Bounds::new(bounds, self.palette.overlay0)
+    }
+
+    fn calculate_fret_marker(&self, fret_number: u8, marker_type: FretMarkerType) -> FretMarker {
+        let x = self.cx.calculate_fret_marker_position_x(fret_number);
+        let orientation = self.cx.orientation;
+        let pos = |y: f32| orientation.transform_point(iced::Point::new(x, y));
+        match marker_type {
+            FretMarkerType::Single => FretMarker::Single(Bounds::new(
+                iced::Rectangle::new(pos(self.cx.origin_fret_marker_single), self.cx.size_fret_marker),
+                self.palette.text,
+            )),
+            FretMarkerType::Double => FretMarker::Double(
+                Bounds::new(
+                    iced::Rectangle::new(pos(self.cx.origin_fret_marker_double_a), self.cx.size_fret_marker),
+                    self.palette.text,
+                ),
+                Bounds::new(
+                    iced::Rectangle::new(pos(self.cx.origin_fret_marker_double_b), self.cx.size_fret_marker),
+                    self.palette.text,
+                ),
+            ),
+        }
+    }
+
+    fn calculate_string(&self, string_number: usize) -> Bounds {
+        let y = self.cx.calculate_string_position_y(string_number);
+        let point = self
+            .cx
+            .orientation
+            .transform_point(iced::Point::new(self.cx.origin_nut, y));
+        let bounds = iced::Rectangle::new(point, self.cx.size_string);
+        Bounds::new(bounds, self.palette.lavender)
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+enum FretMarkerType {
+    Double,
+    Single,
+}
+
+impl FretMarkerType {
+    const MARKUP: [Option<FretMarkerType>; 12] = [
+        None,
+        None,
+        Some(Self::Single),
+        None,
+        Some(Self::Single),
+        None,
+        Some(Self::Single),
+        None,
+        Some(Self::Single),
+        None,
+        None,
+        Some(Self::Double),
+    ];
+}
+
+#[derive(Clone, Copy, Debug)]
+enum FretMarker {
+    Single(Bounds),
+    Double(Bounds, Bounds),
+}
+
+impl FretMarker {
+    fn render(self, renderer: &mut impl iced::advanced::Renderer) {
+        match self {
+            FretMarker::Single(bounds) => bounds.render(renderer),
+            FretMarker::Double(bounds_a, bounds_b) => {
+                bounds_a.render(renderer);
+                bounds_b.render(renderer);
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct LayoutNoteLabel {
+    bounds_size: iced::Size,
+    clip_border: iced::Border,
+    cx: Cx,
+    font_size: iced::Pixels,
+    padding: f32,
+    palette: Palette,
+}
+
+impl LayoutNoteLabel {
+    const BORDER_RADIUS: f32 = 0.5;
+    const BORDER_WIDTH: f32 = 1.0;
+    const FONT: iced::Font = iced::Font::MONOSPACE;
+    const SCALE_PADDING: f32 = 1.25;
+    const TEXT_ALIGN_H: iced::alignment::Horizontal = iced::alignment::Horizontal::Center;
+    const TEXT_ALIGN_V: iced::alignment::Vertical = iced::alignment::Vertical::Center;
+    const TEXT_LINE_HEIGHT: iced::advanced::text::LineHeight = iced::advanced::text::LineHeight::Relative(1.0);
+    const TEXT_SHAPING: iced::advanced::text::Shaping = iced::advanced::text::Shaping::Advanced;
+    const TEXT_WRAPPING: iced::advanced::text::Wrapping = iced::advanced::text::Wrapping::None;
+
+    fn new(cx: Cx, palette: Palette) -> Self {
+        let bounds_width = cx.note_label_bounds_width;
+        let clip_border = iced::Border {
+            color: palette.base,
+            width: Self::BORDER_WIDTH,
+            radius: iced::border::Radius::new(bounds_width * Self::BORDER_RADIUS),
+        };
+        Self {
+            bounds_size: iced::Size::new(bounds_width, bounds_width),
+            clip_border,
+            cx,
+            font_size: iced::Pixels::from(cx.note_label_font_size),
+            padding: cx.note_label_font_size * Self::SCALE_PADDING,
+            palette,
+        }
+    }
+
+    fn calculate(&self, fret_number: u8, string_number: usize, pitch: Pitch) -> NoteLabel {
+        let x = self.cx.calculate_fret_position_x(fret_number) - self.padding;
+        let y = self.cx.calculate_string_position_y(string_number);
+        let location = self.cx.orientation.transform_point(iced::Point::new(x, y));
+        let clip_bounds = Bounds::new(
+            iced::Rectangle::new(
+                iced::Point::new(location.x - self.padding, location.y - self.padding),
+                self.bounds_size,
+            ),
+            pitch.note.get_color(self.palette),
         )
+        .with_border(self.clip_border);
+        NoteLabel {
+            clip_bounds,
+            location,
+            text: iced::advanced::text::Text {
+                bounds: self.bounds_size,
+                content: format!("{}{}", pitch.note.format_sharp(), pitch.octave),
+                font: Self::FONT,
+                horizontal_alignment: Self::TEXT_ALIGN_H,
+                line_height: Self::TEXT_LINE_HEIGHT,
+                shaping: Self::TEXT_SHAPING,
+                size: self.font_size,
+                vertical_alignment: Self::TEXT_ALIGN_V,
+                wrapping: Self::TEXT_WRAPPING,
+            },
+            text_color: self.palette.crust,
+        }
     }
 }
 
 #[derive(Debug)]
 struct NoteLabel {
-    clip_bounds: iced::Rectangle,
+    clip_bounds: Bounds,
     location: iced::Point,
     text: iced::advanced::Text,
+    text_color: iced::Color,
 }
 
 impl NoteLabel {
-    fn new(location: iced::Point, text: String, size: NoteLabelSize) -> Self {
+    fn render(self, renderer: &mut impl iced::advanced::text::Renderer<Font = iced::Font>) {
+        self.clip_bounds.render(renderer);
+        renderer.fill_text(self.text, self.location, self.text_color, self.clip_bounds.quad.bounds);
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+struct Bounds {
+    quad: iced::advanced::renderer::Quad,
+    background: iced::Background,
+}
+
+impl Bounds {
+    fn new(bounds: iced::Rectangle, color: iced::Color) -> Self {
         Self {
-            clip_bounds: size.calculate_clip_bounds(location),
-            location,
-            text: iced::advanced::text::Text {
-                content: text,
-                bounds: size.bounds,
-                size: size.font,
-                line_height: size.line_heigth,
-                font: iced::Font::MONOSPACE,
-                horizontal_alignment: iced::alignment::Horizontal::Center,
-                vertical_alignment: iced::alignment::Vertical::Center,
-                shaping: iced::advanced::text::Shaping::Advanced,
-                wrapping: iced::advanced::text::Wrapping::None,
+            quad: iced::advanced::renderer::Quad {
+                bounds,
+                border: iced::Border::default(),
+                shadow: iced::Shadow::default(),
             },
+            background: iced::Background::Color(color),
         }
+    }
+
+    fn with_border(mut self, value: iced::Border) -> Self {
+        self.quad.border = value;
+        self
+    }
+
+    fn render(self, renderer: &mut impl iced::advanced::renderer::Renderer) {
+        renderer.fill_quad(self.quad, self.background);
     }
 }

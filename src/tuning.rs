@@ -1,3 +1,5 @@
+use crate::theme::Palette;
+
 #[derive(Clone, Debug)]
 pub struct Tuning {
     pub pitches: Vec<Pitch>,
@@ -81,6 +83,23 @@ pub enum Note {
 }
 
 impl Note {
+    pub fn get_color(self, palette: Palette) -> iced::Color {
+        match self {
+            Self::A => palette.sapphire,
+            Self::Bb => palette.sky,
+            Self::B => palette.teal,
+            Self::C => palette.green,
+            Self::Db => palette.yellow,
+            Self::D => palette.peach,
+            Self::Eb => palette.maroon,
+            Self::E => palette.red,
+            Self::F => palette.mauve,
+            Self::Gb => palette.pink,
+            Self::G => palette.lavender,
+            Self::Ab => palette.blue,
+        }
+    }
+
     pub fn format_flat(self) -> &'static str {
         match self {
             Self::A => "A",
