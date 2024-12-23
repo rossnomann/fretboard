@@ -64,6 +64,12 @@ impl Default for Tuning {
     }
 }
 
+impl fmt::Display for Tuning {
+    fn fmt(&self, out: &mut fmt::Formatter) -> fmt::Result {
+        write!(out, "{}", self.name)
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 pub struct Pitch {
     pub note: Note,

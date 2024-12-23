@@ -2,15 +2,19 @@ use std::{error, fmt};
 
 use crate::{
     config::{Config, ConfigError, APPLICATION_ID, APPLICATION_TITLE},
+    theme::ThemeName,
+    tuning::Tuning,
     widget::Fretboard,
 };
+
+const DEFAULT_PADDING: u16 = 10;
 
 pub fn run() -> Result<(), AppError> {
     let mut window_settings = iced::window::Settings::default();
     window_settings.platform_specific.application_id = String::from(APPLICATION_ID);
     let app = iced::application(APPLICATION_TITLE, update, view)
         .window(window_settings)
-        .theme(|state| iced::Theme::from(state.config.theme_name));
+        .theme(|state| iced::Theme::from(state.theme_name));
     let config = Config::read_from_file()?;
     app.run_with(move || (State::new(config), iced::Task::none()))?;
     Ok(())
@@ -54,26 +58,59 @@ impl error::Error for AppError {
 
 #[derive(Debug)]
 struct State {
-    config: Config,
+    theme_name: ThemeName,
+    tuning: StateTuning,
+}
+
+#[derive(Debug)]
+struct StateTuning {
+    combo_box: iced::widget::combo_box::State<Tuning>,
+    selected: Option<Tuning>,
 }
 
 impl State {
     fn new(config: Config) -> Self {
-        Self { config }
+        let tuning_selected = config.tuning.get_selected().clone();
+        let tuning = config.tuning.items.clone();
+        Self {
+            theme_name: config.theme_name,
+            tuning: StateTuning {
+                combo_box: iced::widget::combo_box::State::new(tuning),
+                selected: Some(tuning_selected),
+            },
+        }
     }
 }
 
-#[derive(Debug)]
-enum Message {}
+#[derive(Clone, Debug)]
+enum Message {
+    TuningSelected(Tuning),
+}
 
 fn update(state: &mut State, message: Message) {
-    println!("STATE: {:?}; MESSAGE: {:?}", state, message)
+    match message {
+        Message::TuningSelected(tuning) => state.tuning.selected = Some(tuning),
+    }
 }
 
 fn view(state: &State) -> iced::Element<Message> {
-    iced::widget::row![
-        Fretboard::new(state.config.tuning.get_selected().clone(), state.config.theme_name),
-        iced::widget::text("TODO: CONFIG")
-    ]
+    let tuning_selected = &state.tuning.selected;
+    let fretboard: iced::Element<Message> = match tuning_selected {
+        Some(ref tuning) => Fretboard::new(tuning.clone(), state.theme_name).into(),
+        None => iced::widget::text!("Select tuning").into(),
+    };
+    iced::widget::container(
+        iced::widget::column![
+            iced::widget::container(fretboard).width(iced::Length::FillPortion(3)),
+            iced::widget::combo_box(
+                &state.tuning.combo_box,
+                "Tuning",
+                tuning_selected.as_ref(),
+                Message::TuningSelected
+            ),
+        ]
+        .spacing(DEFAULT_PADDING),
+    )
+    .padding([DEFAULT_PADDING, DEFAULT_PADDING])
     .into()
 }

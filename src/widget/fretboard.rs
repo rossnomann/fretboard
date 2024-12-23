@@ -67,15 +67,14 @@ where
             return;
         }
 
-        Bounds::new(iced::Rectangle::new(iced::Point::ORIGIN, max_size), self.palette.base).render(renderer);
+        Bounds::new(layout_bounds, self.palette.mantle).render(renderer);
 
-        let widget_layout = Layout::new(frets_count, strings_count, max_size, self.palette);
+        let widget_layout = Layout::new(frets_count, strings_count, layout_bounds, self.palette);
         let pitches = match widget_layout.cx.orientation {
             Orientation::Horizontal => &mut pitches.iter().rev() as &mut dyn Iterator<Item = &Pitch>,
             Orientation::Vertical => &mut pitches.iter() as &mut dyn Iterator<Item = &Pitch>,
         };
 
-        widget_layout.calculate_board().render(renderer);
         widget_layout.calculate_nut().render(renderer);
         (1..=frets_count)
             .map(|x| widget_layout.calculate_fret(x))
@@ -133,8 +132,6 @@ impl Orientation {
 
 #[derive(Clone, Copy, Debug)]
 struct Cx {
-    length_frets: f32,
-    length_pitches: f32,
     note_label_bounds_width: f32,
     note_label_font_size: f32,
     orientation: Orientation,
@@ -160,7 +157,9 @@ impl Cx {
     const SCALE_NUT: f32 = 0.002;
     const SCALE_STRING: f32 = 0.005;
 
-    fn new(frets_count: u8, strings_count: usize, max_size: iced::Size) -> Self {
+    fn new(frets_count: u8, strings_count: usize, bounds: iced::Rectangle) -> Self {
+        let origin = bounds.position();
+        let max_size = bounds.size();
         let frets_count = frets_count as f32;
         let strings_count = strings_count as f32;
 
@@ -174,8 +173,8 @@ impl Cx {
         let length_pitches = length_frets / ratio;
 
         let origin = iced::Point::new(
-            (width_frets - length_frets) / 2.0,
-            (width_pitches - length_pitches) / 2.0,
+            origin.x + (width_frets - length_frets) / 2.0,
+            origin.y + (width_pitches - length_pitches) / 2.0,
         );
 
         let nut_width = length_frets * Self::SCALE_NUT;
@@ -193,8 +192,6 @@ impl Cx {
         let origin_fret_marker_single = origin.y + ((length_pitches / 2.0) - (fret_marker_width / 2.0));
 
         Self {
-            length_frets,
-            length_pitches,
             note_label_bounds_width,
             note_label_font_size,
             orientation,
@@ -237,22 +234,13 @@ struct Layout {
 }
 
 impl Layout {
-    fn new(frets_count: u8, strings_count: usize, max_size: iced::Size, palette: Palette) -> Self {
-        let cx = Cx::new(frets_count, strings_count, max_size);
+    fn new(frets_count: u8, strings_count: usize, bounds: iced::Rectangle, palette: Palette) -> Self {
+        let cx = Cx::new(frets_count, strings_count, bounds);
         Self {
             cx,
             note_label: LayoutNoteLabel::new(cx, palette),
             palette,
         }
-    }
-
-    fn calculate_board(&self) -> Bounds {
-        let origin = self.cx.orientation.transform_point(self.cx.origin);
-        let size = self
-            .cx
-            .orientation
-            .transform_size(iced::Size::new(self.cx.length_frets, self.cx.length_pitches));
-        Bounds::new(iced::Rectangle::new(origin, size), self.palette.surface0)
     }
 
     fn calculate_nut(&self) -> Bounds {
