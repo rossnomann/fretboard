@@ -45,7 +45,7 @@ impl TryFrom<SchemaConfig> for Config {
     type Error = ConfigError;
 
     fn try_from(value: SchemaConfig) -> Result<Self, Self::Error> {
-        let default_total_frets = value.default_frets;
+        let default_total_frets = value.default_frets.unwrap_or(Tuning::DEFAULT_TOTAL_FRETS);
         let tunings: Vec<Tuning> = value
             .tuning
             .into_iter()
@@ -71,7 +71,7 @@ impl TryFrom<SchemaConfig> for Config {
 
 #[derive(Clone, Debug, Deserialize)]
 struct SchemaConfig {
-    default_frets: u8,
+    default_frets: Option<u8>,
     default_tuning: Option<String>,
     note_format: Option<NoteFormat>,
     theme_name: Option<ThemeName>,

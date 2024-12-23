@@ -49,6 +49,10 @@ pub struct Tuning {
     pub name: String,
 }
 
+impl Tuning {
+    pub const DEFAULT_TOTAL_FRETS: u8 = 24;
+}
+
 impl Default for Tuning {
     fn default() -> Self {
         Self {
@@ -60,7 +64,7 @@ impl Default for Tuning {
                 Pitch::new(Note::B, 3),
                 Pitch::new(Note::E, 4),
             ],
-            total_frets: 24,
+            total_frets: Self::DEFAULT_TOTAL_FRETS,
             name: String::from("Default"),
         }
     }
