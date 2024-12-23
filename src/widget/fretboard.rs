@@ -5,15 +5,13 @@ use crate::{
 
 #[derive(Debug)]
 pub struct Fretboard {
-    frets_count: u8,
     tuning: Tuning,
     palette: Palette,
 }
 
 impl Fretboard {
-    pub fn new(frets_count: u8, tuning: Tuning, palette: impl Into<Palette>) -> Self {
+    pub fn new(tuning: Tuning, palette: impl Into<Palette>) -> Self {
         Self {
-            frets_count,
             tuning,
             palette: palette.into(),
         }
@@ -52,7 +50,7 @@ where
         _cursor: iced::mouse::Cursor,
         _viewport: &iced::Rectangle,
     ) {
-        let frets_count = self.frets_count;
+        let frets_count = self.tuning.total_frets;
         if frets_count == 0 {
             return;
         }
@@ -332,6 +330,7 @@ impl FretMarkerType {
 }
 
 #[derive(Clone, Copy, Debug)]
+#[allow(clippy::large_enum_variant)]
 enum FretMarker {
     Single(Bounds),
     Double(Bounds, Bounds),

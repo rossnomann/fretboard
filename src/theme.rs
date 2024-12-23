@@ -1,10 +1,16 @@
 use std::{error, fmt, str};
 
-#[derive(Clone, Copy, Debug)]
+use serde::Deserialize;
+
+#[derive(Clone, Copy, Debug, Deserialize)]
 pub enum ThemeName {
+    #[serde(rename = "catppuccin-frappe")]
     Frappe,
+    #[serde(rename = "catppuccin-latte")]
     Latte,
+    #[serde(rename = "catppuccin-macchiato")]
     Macchiato,
+    #[serde(rename = "catppuccin-mocha")]
     Mocha,
 }
 

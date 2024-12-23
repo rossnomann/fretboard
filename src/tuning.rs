@@ -1,8 +1,50 @@
+use std::{error, fmt, str};
+
 use crate::theme::Palette;
+
+#[derive(Clone, Debug)]
+pub struct TuningCollection {
+    pub items: Vec<Tuning>,
+    selected_idx: usize,
+}
+
+impl TuningCollection {
+    pub fn new(items: Vec<Tuning>, selected_idx: usize) -> Result<Self, TuningError> {
+        let mut result = Self { items, selected_idx };
+        result.select(selected_idx)?;
+        Ok(result)
+    }
+
+    pub fn select(&mut self, idx: usize) -> Result<(), TuningError> {
+        if self.items.is_empty() {
+            Err(TuningError::CollectionSelectEmpty)
+        } else if idx >= self.items.len() {
+            Err(TuningError::CollectionSelectIdx(idx))
+        } else {
+            self.selected_idx = idx;
+            Ok(())
+        }
+    }
+
+    pub fn get_selected(&self) -> &Tuning {
+        &self.items[self.selected_idx]
+    }
+}
+
+impl Default for TuningCollection {
+    fn default() -> Self {
+        Self {
+            items: vec![Tuning::default()],
+            selected_idx: 0,
+        }
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct Tuning {
     pub pitches: Vec<Pitch>,
+    pub total_frets: u8,
+    pub name: String,
 }
 
 impl Default for Tuning {
@@ -16,6 +58,8 @@ impl Default for Tuning {
                 Pitch::new(Note::B, 3),
                 Pitch::new(Note::E, 4),
             ],
+            total_frets: 24,
+            name: String::from("Default"),
         }
     }
 }
@@ -41,6 +85,54 @@ impl Pitch {
                 self.octave
             },
         )
+    }
+}
+
+impl fmt::Display for Pitch {
+    fn fmt(&self, out: &mut fmt::Formatter) -> fmt::Result {
+        write!(out, "{}{}", self.note.format_sharp(), self.octave)
+    }
+}
+
+impl str::FromStr for Pitch {
+    type Err = TuningError;
+
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        let err = move || TuningError::parse_pitch(value);
+        let mut chars = value.chars().rev();
+        let octave: i8 = chars
+            .next()
+            .and_then(|x| x.to_digit(10))
+            .ok_or_else(err)
+            .and_then(|x| x.try_into().map_err(|_| err()))?;
+        let c = chars.next().ok_or_else(err)?;
+        let (octave, c) = if c == '-' {
+            (-octave, chars.next().ok_or_else(err)?)
+        } else {
+            (octave, c)
+        };
+        let acc: i8 = match c {
+            '#' => 1,
+            'b' => -1,
+            _ => 0,
+        };
+        let note = if acc != 0 { chars.next().ok_or_else(err)? } else { c };
+        let note = match (note, acc) {
+            ('A', 0) => Note::A,
+            ('A', 1) | ('B', -1) => Note::Bb,
+            ('B', 0) => Note::B,
+            ('C', 0) => Note::C,
+            ('C', 1) | ('D', -1) => Note::Db,
+            ('D', 0) => Note::D,
+            ('D', 1) | ('E', -1) => Note::Eb,
+            ('E', 0) => Note::E,
+            ('F', 0) => Note::F,
+            ('F', 1) | ('G', -1) => Note::Gb,
+            ('G', 0) => Note::G,
+            ('G', 1) | ('A', -1) => Note::Ab,
+            (_, _) => return Err(err()),
+        };
+        Ok(Self { note, octave })
     }
 }
 
@@ -151,3 +243,28 @@ impl Note {
         }
     }
 }
+
+#[derive(Debug)]
+pub enum TuningError {
+    CollectionSelectEmpty,
+    CollectionSelectIdx(usize),
+    ParsePitch(String),
+}
+
+impl TuningError {
+    fn parse_pitch(value: impl Into<String>) -> Self {
+        Self::ParsePitch(value.into())
+    }
+}
+
+impl fmt::Display for TuningError {
+    fn fmt(&self, out: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::CollectionSelectEmpty => write!(out, "collection is empty"),
+            Self::CollectionSelectIdx(idx) => write!(out, "invalid tuning index: {}", idx),
+            Self::ParsePitch(value) => write!(out, "parse pitch: {}", value),
+        }
+    }
+}
+
+impl error::Error for TuningError {}

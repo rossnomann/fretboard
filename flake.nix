@@ -55,6 +55,7 @@
               export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${libraryPath}
               export CARGO_HOME="$PWD/.cargo"
               export PATH="$CARGO_HOME/bin:$PATH"
+              export RUST_LOG=info
               mkdir -p .cargo
               echo '*' > .cargo/.gitignore
             '';
