@@ -1,5 +1,7 @@
 use std::{error, fmt, str};
 
+use serde::Deserialize;
+
 use crate::theme::Palette;
 
 #[derive(Clone, Debug)]
@@ -198,7 +200,14 @@ impl Note {
         }
     }
 
-    pub fn format_flat(self) -> &'static str {
+    pub fn format(self, format: NoteFormat) -> &'static str {
+        match format {
+            NoteFormat::Flat => self.format_flat(),
+            NoteFormat::Sharp => self.format_sharp(),
+        }
+    }
+
+    fn format_flat(self) -> &'static str {
         match self {
             Self::A => "A",
             Self::Bb => "Bb",
@@ -215,7 +224,7 @@ impl Note {
         }
     }
 
-    pub fn format_sharp(self) -> &'static str {
+    fn format_sharp(self) -> &'static str {
         match self {
             Self::A => "A",
             Self::Bb => "A#",
@@ -247,6 +256,19 @@ impl Note {
             Self::G => Self::Ab,
             Self::Ab => Self::A,
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum NoteFormat {
+    Flat,
+    Sharp,
+}
+
+impl Default for NoteFormat {
+    fn default() -> Self {
+        Self::Sharp
     }
 }
 

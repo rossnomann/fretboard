@@ -4,14 +4,15 @@ use serde::Deserialize;
 
 use crate::{
     theme::ThemeName,
-    tuning::{Pitch, Tuning, TuningCollection, TuningError},
+    tuning::{NoteFormat, Pitch, Tuning, TuningCollection, TuningError},
 };
 
 pub const APPLICATION_ID: &str = "com.rossnomann.fretboard";
 pub const APPLICATION_TITLE: &str = "Fretboard";
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Config {
+    pub note_format: NoteFormat,
     pub tuning: TuningCollection,
     pub theme_name: ThemeName,
 }
@@ -61,18 +62,10 @@ impl TryFrom<SchemaConfig> for Config {
             })
             .unwrap_or(0);
         Ok(Self {
+            note_format: value.note_format.unwrap_or_default(),
             tuning: TuningCollection::new(tunings, default_tuning)?,
-            theme_name: value.theme_name,
+            theme_name: value.theme_name.unwrap_or_default(),
         })
-    }
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self {
-            tuning: TuningCollection::default(),
-            theme_name: ThemeName::default(),
-        }
     }
 }
 
@@ -80,7 +73,8 @@ impl Default for Config {
 struct SchemaConfig {
     default_frets: u8,
     default_tuning: Option<String>,
-    theme_name: ThemeName,
+    note_format: Option<NoteFormat>,
+    theme_name: Option<ThemeName>,
     tuning: Vec<SchemaTuning>,
 }
 
@@ -101,7 +95,7 @@ impl SchemaTuning {
         let total_frets = self.frets.unwrap_or(default_total_frets);
         let name = self.name.unwrap_or_else(|| {
             pitches.iter().fold(String::new(), |mut acc, x| {
-                acc.extend(x.to_string().chars());
+                acc.push_str(&x.to_string());
                 acc
             })
         });

@@ -1,18 +1,20 @@
 use crate::{
     theme::Palette,
-    tuning::{Pitch, Tuning},
+    tuning::{NoteFormat, Pitch, Tuning},
 };
 
 #[derive(Debug)]
 pub struct Fretboard {
     tuning: Tuning,
+    note_format: NoteFormat,
     palette: Palette,
 }
 
 impl Fretboard {
-    pub fn new(tuning: Tuning, palette: impl Into<Palette>) -> Self {
+    pub fn new(tuning: Tuning, note_format: NoteFormat, palette: impl Into<Palette>) -> Self {
         Self {
             tuning,
+            note_format,
             palette: palette.into(),
         }
     }
@@ -69,7 +71,13 @@ where
 
         Bounds::new(layout_bounds, self.palette.mantle).render(renderer);
 
-        let widget_layout = Layout::new(frets_count, strings_count, layout_bounds, self.palette);
+        let widget_layout = Layout::new(
+            frets_count,
+            strings_count,
+            layout_bounds,
+            self.note_format,
+            self.palette,
+        );
         let pitches = match widget_layout.cx.orientation {
             Orientation::Horizontal => &mut pitches.iter().rev() as &mut dyn Iterator<Item = &Pitch>,
             Orientation::Vertical => &mut pitches.iter() as &mut dyn Iterator<Item = &Pitch>,
@@ -234,11 +242,17 @@ struct Layout {
 }
 
 impl Layout {
-    fn new(frets_count: u8, strings_count: usize, bounds: iced::Rectangle, palette: Palette) -> Self {
+    fn new(
+        frets_count: u8,
+        strings_count: usize,
+        bounds: iced::Rectangle,
+        note_format: NoteFormat,
+        palette: Palette,
+    ) -> Self {
         let cx = Cx::new(frets_count, strings_count, bounds);
         Self {
             cx,
-            note_label: LayoutNoteLabel::new(cx, palette),
+            note_label: LayoutNoteLabel::new(cx, note_format, palette),
             palette,
         }
     }
@@ -342,6 +356,7 @@ struct LayoutNoteLabel {
     clip_border: iced::Border,
     cx: Cx,
     font_size: iced::Pixels,
+    note_format: NoteFormat,
     padding: f32,
     palette: Palette,
 }
@@ -357,7 +372,7 @@ impl LayoutNoteLabel {
     const TEXT_SHAPING: iced::advanced::text::Shaping = iced::advanced::text::Shaping::Advanced;
     const TEXT_WRAPPING: iced::advanced::text::Wrapping = iced::advanced::text::Wrapping::None;
 
-    fn new(cx: Cx, palette: Palette) -> Self {
+    fn new(cx: Cx, note_format: NoteFormat, palette: Palette) -> Self {
         let bounds_width = cx.note_label_bounds_width;
         let clip_border = iced::Border {
             color: palette.base,
@@ -369,6 +384,7 @@ impl LayoutNoteLabel {
             clip_border,
             cx,
             font_size: iced::Pixels::from(cx.note_label_font_size),
+            note_format,
             padding: cx.note_label_font_size * Self::SCALE_PADDING,
             palette,
         }
@@ -391,7 +407,7 @@ impl LayoutNoteLabel {
             location,
             text: iced::advanced::text::Text {
                 bounds: self.bounds_size,
-                content: format!("{}{}", pitch.note.format_sharp(), pitch.octave),
+                content: format!("{}{}", pitch.note.format(self.note_format), pitch.octave),
                 font: Self::FONT,
                 horizontal_alignment: Self::TEXT_ALIGN_H,
                 line_height: Self::TEXT_LINE_HEIGHT,

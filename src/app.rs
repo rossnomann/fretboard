@@ -3,7 +3,7 @@ use std::{error, fmt};
 use crate::{
     config::{Config, ConfigError, APPLICATION_ID, APPLICATION_TITLE},
     theme::ThemeName,
-    tuning::Tuning,
+    tuning::{NoteFormat, Tuning},
     widget::Fretboard,
 };
 
@@ -58,6 +58,7 @@ impl error::Error for AppError {
 
 #[derive(Debug)]
 struct State {
+    note_format: NoteFormat,
     theme_name: ThemeName,
     tuning: StateTuning,
 }
@@ -73,6 +74,7 @@ impl State {
         let tuning_selected = config.tuning.get_selected().clone();
         let tuning = config.tuning.items.clone();
         Self {
+            note_format: config.note_format,
             theme_name: config.theme_name,
             tuning: StateTuning {
                 combo_box: iced::widget::combo_box::State::new(tuning),
@@ -84,30 +86,50 @@ impl State {
 
 #[derive(Clone, Debug)]
 enum Message {
+    NoteFormatSelected(NoteFormat),
     TuningSelected(Tuning),
 }
 
 fn update(state: &mut State, message: Message) {
     match message {
+        Message::NoteFormatSelected(note_format) => state.note_format = note_format,
         Message::TuningSelected(tuning) => state.tuning.selected = Some(tuning),
     }
 }
 
 fn view(state: &State) -> iced::Element<Message> {
     let tuning_selected = &state.tuning.selected;
+    let note_format_selected = Some(state.note_format);
     let fretboard: iced::Element<Message> = match tuning_selected {
-        Some(ref tuning) => Fretboard::new(tuning.clone(), state.theme_name).into(),
+        Some(ref tuning) => Fretboard::new(tuning.clone(), state.note_format, state.theme_name).into(),
         None => iced::widget::text!("Select tuning").into(),
     };
     iced::widget::container(
         iced::widget::column![
             iced::widget::container(fretboard).width(iced::Length::FillPortion(3)),
-            iced::widget::combo_box(
-                &state.tuning.combo_box,
-                "Tuning",
-                tuning_selected.as_ref(),
-                Message::TuningSelected
-            ),
+            iced::widget::row![
+                iced::widget::container(iced::widget::combo_box(
+                    &state.tuning.combo_box,
+                    "Tuning",
+                    tuning_selected.as_ref(),
+                    Message::TuningSelected
+                ))
+                .width(iced::Length::FillPortion(3)),
+                iced::widget::radio(
+                    "Flat",
+                    NoteFormat::Flat,
+                    note_format_selected,
+                    Message::NoteFormatSelected
+                ),
+                iced::widget::radio(
+                    "Sharp",
+                    NoteFormat::Sharp,
+                    note_format_selected,
+                    Message::NoteFormatSelected
+                )
+            ]
+            .spacing(DEFAULT_PADDING)
+            .align_y(iced::alignment::Vertical::Center),
         ]
         .spacing(DEFAULT_PADDING),
     )
