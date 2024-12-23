@@ -61,32 +61,28 @@
             mainProgram = "fretboard";
           };
         };
-      devShells.${system}.default =
-        let
-
-        in
-        pkgs.mkShell {
-          RUST_SRC_PATH = "${rust-dev}/lib/rustlib/src/rust/library";
-          buildInputs = libraries ++ [
-            pkgs.pkg-config
-            (pkgs.lib.hiPrio (
-              pkgs.rust-bin.stable.latest.minimal.override {
-                extensions = [
-                  "rust-docs"
-                  "clippy"
-                ];
-              }
-            ))
-            rust-dev
-          ];
-          shellHook = ''
-            export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${libraryPath}
-            export CARGO_HOME="$PWD/.cargo"
-            export PATH="$CARGO_HOME/bin:$PATH"
-            export RUST_LOG=info
-            mkdir -p .cargo
-            echo '*' > .cargo/.gitignore
-          '';
-        };
+      devShells.${system}.default = pkgs.mkShell {
+        RUST_SRC_PATH = "${rust-dev}/lib/rustlib/src/rust/library";
+        buildInputs = libraries ++ [
+          pkgs.pkg-config
+          (pkgs.lib.hiPrio (
+            pkgs.rust-bin.stable.latest.minimal.override {
+              extensions = [
+                "rust-docs"
+                "clippy"
+              ];
+            }
+          ))
+          rust-dev
+        ];
+        shellHook = ''
+          export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:${libraryPath}
+          export CARGO_HOME="$PWD/.cargo"
+          export PATH="$CARGO_HOME/bin:$PATH"
+          export RUST_LOG=info
+          mkdir -p .cargo
+          echo '*' > .cargo/.gitignore
+        '';
+      };
     };
 }
