@@ -101,7 +101,7 @@ fn view(state: &State) -> iced::Element<Message> {
     let tuning_selected = &state.tuning.selected;
     let note_format_selected = Some(state.note_format);
     let fretboard: iced::Element<Message> = match tuning_selected {
-        Some(ref tuning) => Fretboard::new(tuning.clone(), state.note_format, state.theme_name).into(),
+        Some(tuning) => Fretboard::new(tuning.clone(), state.note_format, state.theme_name).into(),
         None => iced::widget::text!("Select tuning").into(),
     };
     iced::widget::container(
