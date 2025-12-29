@@ -26,9 +26,11 @@
         pkgs.libxkbcommon
         pkgs.xorg.libX11
         pkgs.xorg.libXcursor
+        pkgs.xorg.libXrandr
         pkgs.xorg.libXi
         pkgs.xorg.libxcb
         pkgs.vulkan-loader
+        pkgs.wayland
       ];
       libraryPath = pkgs.lib.makeLibraryPath libraries;
     in
