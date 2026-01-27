@@ -39,34 +39,25 @@ A flexible fretboard visualization tool.
 
 ## Configuration
 
-Default path: `$XDG_CONFIG_HOME/fretboard/config.toml`
+Default path: `$XDG_CONFIG_HOME/fretboard/config.kdl`
 Use `FRETBOARD_CONFIG_PATH` environment variable to override the path.
 
 Example:
 
-```toml
-# default_frets = 24
-# default_tuning = "Guitar (6) Standard" # name from a [[tuning]] list item
-# note_format = "sharp"  # or flat
-# Theme: catppuccin-frappe, catppuccin-latte, catppuccin-macchiato, catppuccin-mocha
-# theme_name = "catppuccin-mocha"
-[[tuning]]
-name = "Guitar (6) Standard"
-data = ["E2", "A2", "D3", "G3", "B3", "E4"]
-[[tuning]]
-name = "Guitar (6) D Standard"
-data = ["D2", "G2", "C3", "F3", "A3", "D4"]
-[[tuning]]
-name = "Guitar (6) Drop C#"
-data = ["Db2", "Ab2", "Db3", "Gb3", "Bb3", "Eb4"]
-[[tuning]]
-name = "Bass (4) Standard"
-frets = 24
-data = ["E1", "A1", "D2", "G2"]
-[[tuning]]
-name = "Ukulele"
-frets = 15
-data = ["G4", "C4", "E4", "A4"]
+```kdl
+default {
+  frets 24
+  tuning "Guitar (6) Standard" // name from a tuning node
+  note-format "sharp" // or flat
+  // Theme: catppuccin-frappe, catppuccin-latte, catppuccin-macchiato, catppuccin-mocha
+  theme-name "catppuccin-mocha"
+}
+
+tuning name="Guitar (6) Standard" "E2" "A2" "D3" "G3" "B3" "E4"
+tuning name="Guitar (6) D Standard" "D2" "G2" "C3" "F3" "A3" "D4"
+tuning name="Guitar (6) Drop C#" "Db2" "Ab2" "Db3" "Gb3" "Bb3" "Eb4"
+tuning name="Bass (4) Standard" frets=24 "E1" "A1" "D2" "G2"
+tuning name="Ukulele" frets=15 "G4" "C4" "E4" "A4"
 ```
 
 ## LICENSE

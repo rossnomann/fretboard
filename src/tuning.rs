@@ -1,6 +1,8 @@
-use std::{error, fmt, str};
-
-use serde::Deserialize;
+use std::{
+    error,
+    fmt,
+    str::{self, FromStr},
+};
 
 use crate::theme::Palette;
 
@@ -263,8 +265,7 @@ impl Note {
     }
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq)]
-#[serde(rename_all = "snake_case")]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NoteFormat {
     Flat,
     Sharp,
@@ -275,6 +276,35 @@ impl Default for NoteFormat {
         Self::Sharp
     }
 }
+
+impl FromStr for NoteFormat {
+    type Err = NoteFormatError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "flat" => Ok(Self::Flat),
+            "sharp" => Ok(Self::Sharp),
+            _ => Err(NoteFormatError::from(s)),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub struct NoteFormatError(String);
+
+impl From<&str> for NoteFormatError {
+    fn from(value: &str) -> Self {
+        Self(String::from(value))
+    }
+}
+
+impl fmt::Display for NoteFormatError {
+    fn fmt(&self, out: &mut fmt::Formatter) -> fmt::Result {
+        write!(out, "unexpected note format: {}", self.0)
+    }
+}
+
+impl error::Error for NoteFormatError {}
 
 #[derive(Debug)]
 pub enum TuningError {

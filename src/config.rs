@@ -1,10 +1,10 @@
 use std::{env, error, fmt, fs, io, path};
 
-use serde::Deserialize;
+use miette::Report;
 
 use crate::{
-    theme::ThemeName,
-    tuning::{NoteFormat, Pitch, Tuning, TuningCollection, TuningError},
+    theme::{ThemeError, ThemeName},
+    tuning::{NoteFormat, NoteFormatError, Pitch, Tuning, TuningCollection, TuningError},
 };
 
 pub const APPLICATION_ID: &str = "com.rossnomann.fretboard";
@@ -22,39 +22,56 @@ impl Config {
         let config_path = match env::var("FRETBOARD_CONFIG_PATH") {
             Ok(value) => {
                 log::info!("Reading configuration from FRETBOARD_CONFIG_PATH: {}", value);
-                path::PathBuf::from(value)
+                Some(path::PathBuf::from(value))
             }
             Err(_) => {
                 let base_dirs = xdg::BaseDirectories::with_prefix("fretboard");
                 base_dirs
-                    .get_config_file("config.toml")
-                    .ok_or(ConfigError::MissingPath)?
+                    .get_config_file("config.kdl")
+                    .inspect(|x| {
+                        log::info!("Configration file path: {}", x.display());
+                    })
+                    .or_else(|| {
+                        log::warn!("Configuration path is not found, using default config");
+                        None
+                    })
             }
-        };
-        log::info!("Configration file path: {}", config_path.display());
-        if config_path.exists() {
-            let data = fs::read_to_string(config_path)?;
-            let schema: SchemaConfig = toml::from_str(&data)?;
+        }
+        .and_then(|x| {
+            if x.exists() {
+                Some(x)
+            } else {
+                log::error!("No such file: {}, using default config", x.display());
+                None
+            }
+        });
+        if let Some(config_path) = config_path {
+            let data = fs::read_to_string(&config_path)?;
+            let file_name = config_path
+                .file_name()
+                .map(|x| format!("{}", x.display()))
+                .unwrap_or(String::from("config.kdl"));
+            let schema: Schema = knus::parse(file_name, &data)?;
             Self::try_from(schema)
         } else {
-            log::error!("Configuration file is not found, using default");
             Ok(Self::default())
         }
     }
 }
 
-impl TryFrom<SchemaConfig> for Config {
+impl TryFrom<Schema> for Config {
     type Error = ConfigError;
 
-    fn try_from(value: SchemaConfig) -> Result<Self, Self::Error> {
-        let default_total_frets = value.default_frets.unwrap_or(Tuning::DEFAULT_TOTAL_FRETS);
+    fn try_from(value: Schema) -> Result<Self, Self::Error> {
+        let default_total_frets = value.default.frets.unwrap_or(Tuning::DEFAULT_TOTAL_FRETS);
         let tunings: Vec<Tuning> = value
             .tuning
             .into_iter()
-            .map(|x| x.into_tuning(default_total_frets))
+            .map(|x| x.try_into_tuning(default_total_frets))
             .collect::<Result<_, ConfigError>>()?;
         let default_tuning = value
-            .default_tuning
+            .default
+            .tuning
             .and_then(|name| {
                 tunings
                     .iter()
@@ -64,31 +81,51 @@ impl TryFrom<SchemaConfig> for Config {
             })
             .unwrap_or(0);
         Ok(Self {
-            note_format: value.note_format.unwrap_or_default(),
+            note_format: match value.default.note_format {
+                Some(x) => x.parse()?,
+                None => NoteFormat::default(),
+            },
             tuning: TuningCollection::new(tunings, default_tuning)?,
-            theme_name: value.theme_name.unwrap_or_default(),
+            theme_name: match value.default.theme_name {
+                Some(x) => x.parse()?,
+                None => ThemeName::default(),
+            },
         })
     }
 }
 
-#[derive(Clone, Debug, Deserialize)]
-struct SchemaConfig {
-    default_frets: Option<u8>,
-    default_tuning: Option<String>,
-    note_format: Option<NoteFormat>,
-    theme_name: Option<ThemeName>,
+#[derive(Clone, Debug, knus::Decode)]
+struct Schema {
+    #[knus(child)]
+    default: SchemaDefault,
+    #[knus(children(name = "tuning"))]
     tuning: Vec<SchemaTuning>,
 }
 
-#[derive(Clone, Debug, Deserialize)]
-struct SchemaTuning {
-    data: Vec<String>,
+#[derive(Clone, Debug, knus::Decode)]
+struct SchemaDefault {
+    #[knus(child, unwrap(argument))]
     frets: Option<u8>,
+    #[knus(child, unwrap(argument))]
+    tuning: Option<String>,
+    #[knus(child, unwrap(argument))]
+    note_format: Option<String>,
+    #[knus(child, unwrap(argument))]
+    theme_name: Option<String>,
+}
+
+#[derive(Clone, Debug, knus::Decode)]
+struct SchemaTuning {
+    #[knus(property)]
+    frets: Option<u8>,
+    #[knus(property)]
     name: Option<String>,
+    #[knus(arguments)]
+    data: Vec<String>,
 }
 
 impl SchemaTuning {
-    fn into_tuning(self, default_total_frets: u8) -> Result<Tuning, ConfigError> {
+    fn try_into_tuning(self, default_total_frets: u8) -> Result<Tuning, ConfigError> {
         let pitches: Vec<Pitch> = self
             .data
             .into_iter()
@@ -111,15 +148,28 @@ impl SchemaTuning {
 
 #[derive(Debug)]
 pub enum ConfigError {
-    MissingPath,
-    ParseToml(toml::de::Error),
+    ParseKdl(Report),
+    ParseNoteFormat(NoteFormatError),
+    ParseTheme(ThemeError),
     ParseTuning(TuningError),
     ReadFile(io::Error),
 }
 
-impl From<toml::de::Error> for ConfigError {
-    fn from(value: toml::de::Error) -> Self {
-        Self::ParseToml(value)
+impl From<knus::Error> for ConfigError {
+    fn from(value: knus::Error) -> Self {
+        Self::ParseKdl(Report::new(value))
+    }
+}
+
+impl From<NoteFormatError> for ConfigError {
+    fn from(value: NoteFormatError) -> Self {
+        Self::ParseNoteFormat(value)
+    }
+}
+
+impl From<ThemeError> for ConfigError {
+    fn from(value: ThemeError) -> Self {
+        Self::ParseTheme(value)
     }
 }
 
@@ -138,8 +188,9 @@ impl From<io::Error> for ConfigError {
 impl fmt::Display for ConfigError {
     fn fmt(&self, out: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::MissingPath => write!(out, "config path is missing"),
-            Self::ParseToml(err) => write!(out, "parse TOML: {}", err),
+            Self::ParseKdl(err) => write!(out, "{}", err),
+            Self::ParseNoteFormat(err) => write!(out, "parse note format: {}", err),
+            Self::ParseTheme(err) => write!(out, "parse theme: {}", err),
             Self::ParseTuning(err) => write!(out, "parse tuning: {}", err),
             Self::ReadFile(err) => write!(out, "read file: {}", err),
         }
@@ -149,8 +200,9 @@ impl fmt::Display for ConfigError {
 impl error::Error for ConfigError {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         Some(match self {
-            Self::MissingPath => return None,
-            Self::ParseToml(err) => err,
+            Self::ParseKdl(_) => return None,
+            Self::ParseNoteFormat(err) => err,
+            Self::ParseTheme(err) => err,
             Self::ParseTuning(err) => err,
             Self::ReadFile(err) => err,
         })

@@ -1,7 +1,7 @@
 use std::{error, fmt};
 
 use crate::{
-    config::{APPLICATION_ID, APPLICATION_TITLE, Config},
+    config::{APPLICATION_ID, APPLICATION_TITLE, Config, ConfigError},
     theme::ThemeName,
     tuning::{NoteFormat, Tuning},
     widget::Fretboard,
@@ -14,8 +14,19 @@ pub fn run() -> Result<(), AppError> {
     window_settings.platform_specific.application_id = String::from(APPLICATION_ID);
     let app = iced::application(boot, update, view)
         .window(window_settings)
-        .title(|_state: &State| format!("{APPLICATION_TITLE}"))
-        .theme(|state: &State| iced::Theme::from(state.theme_name));
+        .title(|state: &State| match state {
+            State::Running(data) => match &data.tuning.selected {
+                Some(tuning) => format!("{APPLICATION_TITLE} - {tuning}"),
+                None => format!("{APPLICATION_TITLE}"),
+            },
+            State::ConfigError(_) => format!("{APPLICATION_TITLE} - Configuration Error"),
+        })
+        .theme(|state: &State| {
+            iced::Theme::from(match state {
+                State::Running(data) => data.theme_name,
+                State::ConfigError(_) => ThemeName::default(),
+            })
+        });
     app.run()?;
     Ok(())
 }
@@ -48,7 +59,13 @@ impl error::Error for AppError {
 }
 
 #[derive(Debug)]
-struct State {
+enum State {
+    Running(StateData),
+    ConfigError(ConfigError),
+}
+
+#[derive(Debug)]
+struct StateData {
     note_format: NoteFormat,
     theme_name: ThemeName,
     tuning: StateTuning,
@@ -60,7 +77,7 @@ struct StateTuning {
     selected: Option<Tuning>,
 }
 
-impl State {
+impl StateData {
     fn new(config: Config) -> Self {
         let tuning_selected = config.tuning.get_selected().clone();
         let tuning = config.tuning.items.clone();
@@ -82,22 +99,37 @@ enum Message {
 }
 
 fn boot() -> State {
-    let config = Config::read_from_file().expect("Failed to read config");
-    State::new(config)
+    match Config::read_from_file() {
+        Ok(config) => State::Running(StateData::new(config)),
+        Err(err) => {
+            eprintln!("{:?}", err);
+            State::ConfigError(err)
+        }
+    }
 }
 
 fn update(state: &mut State, message: Message) {
+    let State::Running(state_data) = state else {
+        return;
+    };
     match message {
-        Message::NoteFormatSelected(note_format) => state.note_format = note_format,
-        Message::TuningSelected(tuning) => state.tuning.selected = Some(tuning),
+        Message::NoteFormatSelected(note_format) => state_data.note_format = note_format,
+        Message::TuningSelected(tuning) => state_data.tuning.selected = Some(tuning),
     }
 }
 
 fn view(state: &State) -> iced::Element<'_, Message> {
-    let tuning_selected = &state.tuning.selected;
-    let note_format_selected = Some(state.note_format);
+    match state {
+        State::Running(data) => view_running(data),
+        State::ConfigError(err) => view_config_error(err),
+    }
+}
+
+fn view_running(data: &StateData) -> iced::Element<'_, Message> {
+    let tuning_selected = &data.tuning.selected;
+    let note_format_selected = Some(data.note_format);
     let fretboard: iced::Element<Message> = match tuning_selected {
-        Some(tuning) => Fretboard::new(tuning.clone(), state.note_format, state.theme_name).into(),
+        Some(tuning) => Fretboard::new(tuning.clone(), data.note_format, data.theme_name).into(),
         None => iced::widget::text!("Select tuning").into(),
     };
     iced::widget::container(
@@ -105,7 +137,7 @@ fn view(state: &State) -> iced::Element<'_, Message> {
             iced::widget::container(fretboard).width(iced::Length::FillPortion(3)),
             iced::widget::row![
                 iced::widget::container(iced::widget::combo_box(
-                    &state.tuning.combo_box,
+                    &data.tuning.combo_box,
                     "Tuning",
                     tuning_selected.as_ref(),
                     Message::TuningSelected
@@ -131,4 +163,9 @@ fn view(state: &State) -> iced::Element<'_, Message> {
     )
     .padding(iced::padding::all(DEFAULT_PADDING))
     .into()
+}
+
+fn view_config_error(err: &ConfigError) -> iced::Element<'_, Message> {
+    let message = err.to_string();
+    iced::widget::text(message).into()
 }
