@@ -17,7 +17,7 @@ pub fn run() -> Result<(), AppError> {
         .title(|state: &State| match state {
             State::Running(data) => match &data.tuning.selected {
                 Some(tuning) => format!("{APPLICATION_TITLE} - {tuning}"),
-                None => format!("{APPLICATION_TITLE}"),
+                None => String::from(APPLICATION_TITLE),
             },
             State::ConfigError(_) => format!("{APPLICATION_TITLE} - Configuration Error"),
         })

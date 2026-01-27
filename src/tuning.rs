@@ -265,16 +265,11 @@ impl Note {
     }
 }
 
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub enum NoteFormat {
     Flat,
+    #[default]
     Sharp,
-}
-
-impl Default for NoteFormat {
-    fn default() -> Self {
-        Self::Sharp
-    }
 }
 
 impl FromStr for NoteFormat {

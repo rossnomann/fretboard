@@ -1,10 +1,11 @@
 use std::{error, fmt, str};
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 pub enum ThemeName {
     Frappe,
     Latte,
     Macchiato,
+    #[default]
     Mocha,
 }
 
@@ -28,12 +29,6 @@ impl From<ThemeName> for Palette {
             ThemeName::Mocha => catppuccin::PALETTE.mocha.colors,
         }
         .into()
-    }
-}
-
-impl Default for ThemeName {
-    fn default() -> Self {
-        Self::Mocha
     }
 }
 
