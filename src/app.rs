@@ -1,35 +1,28 @@
 use std::{error, fmt};
 
 use crate::{
-    config::{Config, ConfigError, APPLICATION_ID, APPLICATION_TITLE},
+    config::{APPLICATION_ID, APPLICATION_TITLE, Config},
     theme::ThemeName,
     tuning::{NoteFormat, Tuning},
     widget::Fretboard,
 };
 
-const DEFAULT_PADDING: u16 = 10;
+const DEFAULT_PADDING: iced::Pixels = iced::Pixels(10.0);
 
 pub fn run() -> Result<(), AppError> {
     let mut window_settings = iced::window::Settings::default();
     window_settings.platform_specific.application_id = String::from(APPLICATION_ID);
-    let app = iced::application(APPLICATION_TITLE, update, view)
+    let app = iced::application(boot, update, view)
         .window(window_settings)
-        .theme(|state| iced::Theme::from(state.theme_name));
-    let config = Config::read_from_file()?;
-    app.run_with(move || (State::new(config), iced::Task::none()))?;
+        .title(|_state: &State| format!("{APPLICATION_TITLE}"))
+        .theme(|state: &State| iced::Theme::from(state.theme_name));
+    app.run()?;
     Ok(())
 }
 
 #[derive(Debug)]
 pub enum AppError {
-    Config(ConfigError),
     Ui(iced::Error),
-}
-
-impl From<ConfigError> for AppError {
-    fn from(value: ConfigError) -> Self {
-        Self::Config(value)
-    }
 }
 
 impl From<iced::Error> for AppError {
@@ -41,7 +34,6 @@ impl From<iced::Error> for AppError {
 impl fmt::Display for AppError {
     fn fmt(&self, out: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::Config(err) => err.fmt(out),
             Self::Ui(err) => err.fmt(out),
         }
     }
@@ -50,7 +42,6 @@ impl fmt::Display for AppError {
 impl error::Error for AppError {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         Some(match self {
-            Self::Config(err) => err,
             Self::Ui(err) => err,
         })
     }
@@ -90,6 +81,11 @@ enum Message {
     TuningSelected(Tuning),
 }
 
+fn boot() -> State {
+    let config = Config::read_from_file().expect("Failed to read config");
+    State::new(config)
+}
+
 fn update(state: &mut State, message: Message) {
     match message {
         Message::NoteFormatSelected(note_format) => state.note_format = note_format,
@@ -97,7 +93,7 @@ fn update(state: &mut State, message: Message) {
     }
 }
 
-fn view(state: &State) -> iced::Element<Message> {
+fn view(state: &State) -> iced::Element<'_, Message> {
     let tuning_selected = &state.tuning.selected;
     let note_format_selected = Some(state.note_format);
     let fretboard: iced::Element<Message> = match tuning_selected {
@@ -133,6 +129,6 @@ fn view(state: &State) -> iced::Element<Message> {
         ]
         .spacing(DEFAULT_PADDING),
     )
-    .padding([DEFAULT_PADDING, DEFAULT_PADDING])
+    .padding(iced::padding::all(DEFAULT_PADDING))
     .into()
 }

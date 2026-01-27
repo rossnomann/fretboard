@@ -31,7 +31,7 @@ where
     }
 
     fn layout(
-        &self,
+        &mut self,
         _tree: &mut iced::advanced::widget::Tree,
         _renderer: &R,
         limits: &iced::advanced::layout::Limits,
@@ -366,7 +366,7 @@ impl LayoutNoteLabel {
     const BORDER_WIDTH: f32 = 1.0;
     const FONT: iced::Font = iced::Font::MONOSPACE;
     const SCALE_PADDING: f32 = 1.25;
-    const TEXT_ALIGN_H: iced::alignment::Horizontal = iced::alignment::Horizontal::Center;
+    const TEXT_ALIGN_H: iced::advanced::text::Alignment = iced::advanced::text::Alignment::Center;
     const TEXT_ALIGN_V: iced::alignment::Vertical = iced::alignment::Vertical::Center;
     const TEXT_LINE_HEIGHT: iced::advanced::text::LineHeight = iced::advanced::text::LineHeight::Relative(1.0);
     const TEXT_SHAPING: iced::advanced::text::Shaping = iced::advanced::text::Shaping::Advanced;
@@ -409,11 +409,11 @@ impl LayoutNoteLabel {
                 bounds: self.bounds_size,
                 content: format!("{}{}", pitch.note.format(self.note_format), pitch.octave),
                 font: Self::FONT,
-                horizontal_alignment: Self::TEXT_ALIGN_H,
+                align_x: Self::TEXT_ALIGN_H,
                 line_height: Self::TEXT_LINE_HEIGHT,
                 shaping: Self::TEXT_SHAPING,
                 size: self.font_size,
-                vertical_alignment: Self::TEXT_ALIGN_V,
+                align_y: Self::TEXT_ALIGN_V,
                 wrapping: Self::TEXT_WRAPPING,
             },
             text_color: self.palette.crust,
@@ -449,6 +449,7 @@ impl Bounds {
                 bounds,
                 border: iced::Border::default(),
                 shadow: iced::Shadow::default(),
+                snap: false,
             },
             background: iced::Background::Color(color),
         }

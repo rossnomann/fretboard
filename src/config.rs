@@ -25,8 +25,10 @@ impl Config {
                 path::PathBuf::from(value)
             }
             Err(_) => {
-                let base_dirs = xdg::BaseDirectories::with_prefix("fretboard")?;
-                base_dirs.get_config_file("config.toml")
+                let base_dirs = xdg::BaseDirectories::with_prefix("fretboard");
+                base_dirs
+                    .get_config_file("config.toml")
+                    .ok_or(ConfigError::MissingPath)?
             }
         };
         log::info!("Configration file path: {}", config_path.display());
@@ -109,16 +111,10 @@ impl SchemaTuning {
 
 #[derive(Debug)]
 pub enum ConfigError {
-    BaseDirectories(xdg::BaseDirectoriesError),
+    MissingPath,
     ParseToml(toml::de::Error),
     ParseTuning(TuningError),
     ReadFile(io::Error),
-}
-
-impl From<xdg::BaseDirectoriesError> for ConfigError {
-    fn from(value: xdg::BaseDirectoriesError) -> Self {
-        Self::BaseDirectories(value)
-    }
 }
 
 impl From<toml::de::Error> for ConfigError {
@@ -142,7 +138,7 @@ impl From<io::Error> for ConfigError {
 impl fmt::Display for ConfigError {
     fn fmt(&self, out: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Self::BaseDirectories(err) => err.fmt(out),
+            Self::MissingPath => write!(out, "config path is missing"),
             Self::ParseToml(err) => write!(out, "parse TOML: {}", err),
             Self::ParseTuning(err) => write!(out, "parse tuning: {}", err),
             Self::ReadFile(err) => write!(out, "read file: {}", err),
@@ -153,7 +149,7 @@ impl fmt::Display for ConfigError {
 impl error::Error for ConfigError {
     fn source(&self) -> Option<&(dyn error::Error + 'static)> {
         Some(match self {
-            Self::BaseDirectories(err) => err,
+            Self::MissingPath => return None,
             Self::ParseToml(err) => err,
             Self::ParseTuning(err) => err,
             Self::ReadFile(err) => err,
