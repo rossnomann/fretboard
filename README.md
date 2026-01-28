@@ -21,16 +21,17 @@ A flexible fretboard visualization tool.
   outputs = inputs: 
   let 
     system = "x86_64-linux";
+    overlays = [ inputs.fretboard.overlays.${system}.default ];
   in {
     nixosConfigurations.default = inputs.nixpkgs.lib.nixosSystem {
       inherit system;
-      overlays = [ inputs.fretboard.overlays.${system}.default ];
       modules = [
         (
-          { ... }:
+          { pkgs, ... }:
           {
             config = {
               environment.systemPackages = [ pkgs.fretboard ];
+              nixpkgs.overlays = overlays;
             };
           }
         )
